@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 
 // Decorative Corner Brackets
@@ -87,6 +88,22 @@ export const RangeSlider: React.FC<{ label: string; value: number; onChange: (va
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
     </div>
+  </div>
+);
+
+export const StatCard: React.FC<{ label: string; value: string; subtext?: string; active?: boolean }> = ({ label, value, subtext, active }) => (
+  <div className={`bg-alan-primary/5 border border-alan-primary/20 p-4 relative overflow-hidden group hover:border-alan-primary/50 transition-colors ${active ? 'border-alan-primary/60 bg-alan-primary/10' : ''}`}>
+    <CornerBrackets className="scale-90 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all" />
+    <div className="text-[10px] font-mono text-alan-secondary tracking-widest mb-1 opacity-70">{label}</div>
+    <div className="text-2xl font-display font-bold text-alan-primary">{value}</div>
+    {subtext && <div className="text-[9px] font-mono text-alan-primary/60 mt-1">{subtext}</div>}
+    {active && <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-alan-accent rounded-full animate-ping" />}
+  </div>
+);
+
+export const ProgressBar: React.FC<{ value: number; color?: string }> = ({ value, color = 'bg-alan-primary' }) => (
+  <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+    <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${value}%` }} />
   </div>
 );
 

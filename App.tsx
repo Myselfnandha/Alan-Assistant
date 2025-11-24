@@ -1,40 +1,127 @@
-import React, { useState } from 'react';
-import { Mic, MicOff, Send, Settings, RefreshCw, X, Camera, Eye, Sliders, Activity, Database, ShieldAlert, Cpu } from 'lucide-react';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, Send, Camera, Eye, Sliders, RefreshCw, Paperclip, Clipboard, LayoutGrid, X, Lock } from 'lucide-react';
 import { DEFAULT_SETTINGS } from './constants';
 import { useAlanSystem } from './hooks/useAlanSystem';
 import Visualizer from './components/Visualizer';
-import { Card, Button, TerminalText, RangeSlider, BootSequence, CornerBrackets } from './components/HolographicComponents';
+import { Card, Button, TerminalText, BootSequence, CornerBrackets } from './components/HolographicComponents';
 import CameraInput from './components/CameraInput';
-import { MessageSender } from './types';
+import CommandCenter from './components/CommandCenter';
+import ReasoningHUD from './components/ReasoningHUD'; 
+import { RichOutputRenderer } from './components/RichOutputRenderer';
+import { MessageSender, Attachment, ReasoningMode } from './types';
 
 const App: React.FC = () => {
   const [booting, setBooting] = useState(true);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [inputText, setInputText] = useState('');
   const [activeTab, setActiveTab] = useState<'visual' | 'chat'>('chat');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  const { messages, systemState, processInput, processVisualInput, toggleListening } = useAlanSystem(settings);
+  const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [pin, setPin] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { messages, systemState, processInput, processVisualInput, toggleListening, unlockSystem } = useAlanSystem(settings);
 
   // Auto-scroll chat
-  const chatEndRef = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = () => {
-    if (inputText.trim()) {
-      processInput(inputText);
+    if (inputText.trim() || attachments.length > 0) {
+      processInput(inputText, attachments);
       setInputText('');
+      setAttachments([]);
     }
   };
 
+  const handleUnlock = async () => {
+      const success = await unlockSystem(pin);
+      if (!success) {
+          alert("Access Denied");
+          setPin("");
+      }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSend();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        const isImage = file.type.startsWith('image/');
+        
+        let data = result;
+        if (isImage) {
+           data = result.split(',')[1]; // Strip base64 prefix for API
+        }
+
+        const newAttachment: Attachment = {
+           name: file.name,
+           type: isImage ? 'image' : 'text', // Simple classification
+           mimeType: file.type,
+           data: data
+        };
+        setAttachments(prev => [...prev, newAttachment]);
+      };
+
+      if (file.type.startsWith('image/')) {
+         reader.readAsDataURL(file);
+      } else {
+         reader.readAsText(file);
+      }
+    }
+  };
+
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setInputText(prev => prev + text);
+    } catch (err) {
+      console.error("Clipboard access denied");
+    }
   };
 
   if (booting) {
     return <BootSequence onComplete={() => setBooting(false)} />;
+  }
+
+  // SECURITY OVERLAY (Layer 10)
+  if (systemState.security.isLocked) {
+      return (
+          <div className="h-screen bg-alan-bg flex items-center justify-center relative overflow-hidden">
+              <div className="scanlines" />
+              <div className="vignette" />
+              <div className="relative z-20 flex flex-col items-center gap-6 p-8 bg-alan-glass/50 border border-alan-primary/30 rounded-lg backdrop-blur-md animate-appear">
+                  <Lock size={64} className="text-alan-primary animate-pulse" />
+                  <h1 className="text-2xl font-display font-bold text-alan-primary tracking-widest">SYSTEM LOCKED</h1>
+                  <div className="flex flex-col gap-2 w-64">
+                      <input 
+                        type="password" 
+                        placeholder="ENTER ACCESS CODE" 
+                        className="bg-black/50 border border-alan-primary/30 p-3 text-center text-alan-primary font-mono tracking-[0.5em] outline-none focus:border-alan-primary"
+                        value={pin}
+                        onChange={(e) => setPin(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                      />
+                      <Button onClick={handleUnlock} active={true}>AUTHENTICATE</Button>
+                      <div className="text-center text-[10px] text-alan-secondary/50 font-mono mt-2">
+                          DEFAULT: 1234
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
   }
 
   // Determine Visualizer State
@@ -43,6 +130,9 @@ const App: React.FC = () => {
   else if (systemState.processing) visualizerState = 'processing';
   else if (systemState.listening) visualizerState = 'listening';
 
+  const lastMsg = messages[messages.length - 1];
+  const activeThoughts = systemState.processing ? null : (lastMsg?.metadata?.thoughtProcess || null);
+
   return (
     <div className="h-screen bg-alan-bg text-alan-secondary font-display flex flex-col md:flex-row overflow-hidden relative">
       {/* Global HUD Effects */}
@@ -50,91 +140,22 @@ const App: React.FC = () => {
       <div className="vignette" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
 
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-appear">
-          <div className="w-full max-w-2xl bg-alan-bg/95 border border-alan-primary/40 p-1 relative shadow-[0_0_100px_rgba(0,240,255,0.1)]">
-             <CornerBrackets />
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-alan-primary to-transparent opacity-50" />
-             
-             <div className="p-6 md:p-8 relative z-10">
-                <div className="flex justify-between items-start mb-8 border-b border-alan-primary/20 pb-4">
-                  <div>
-                    <h2 className="text-2xl font-display font-bold text-alan-primary tracking-[0.2em] flex items-center gap-3">
-                        <Settings className="animate-spin-slow" />
-                        SYSTEM_CONFIG
-                    </h2>
-                    <p className="text-xs font-mono text-alan-secondary/60 mt-1">ACCESS LEVEL: ADMINISTRATOR</p>
-                  </div>
-                  <button onClick={() => setIsSettingsOpen(false)} className="text-alan-primary/50 hover:text-alan-accent transition-colors">
-                      <X size={32} />
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   {/* Column 1: Core Toggles */}
-                   <div className="space-y-6">
-                      <h3 className="text-sm font-mono text-alan-primary/70 uppercase border-l-2 border-alan-primary pl-2">Core Modules</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button active={settings.voiceEnabled} onClick={() => setSettings(p => ({...p, voiceEnabled: !p.voiceEnabled}))} className="gap-2">
-                            {settings.voiceEnabled ? <Mic size={16} /> : <MicOff size={16} />} VOICE
-                        </Button>
-                        <Button active={settings.cameraEnabled} onClick={() => setSettings(p => ({...p, cameraEnabled: !p.cameraEnabled}))} className="gap-2">
-                            <Camera size={16} /> VISION
-                        </Button>
-                        <Button active={settings.offlineMode} onClick={() => setSettings(p => ({...p, offlineMode: !p.offlineMode}))} className="gap-2">
-                            <ShieldAlert size={16} /> SECURE
-                        </Button>
-                        <Button active={settings.wakeWordEnabled} onClick={() => setSettings(p => ({...p, wakeWordEnabled: !p.wakeWordEnabled}))} className="gap-2">
-                            <Activity size={16} /> AWAKE
-                        </Button>
-                      </div>
-                      
-                      <div className="p-4 bg-alan-primary/5 border border-alan-primary/20 mt-4">
-                        <div className="flex items-center gap-2 text-alan-primary mb-2">
-                            <Database size={14} />
-                            <span className="text-xs font-mono tracking-widest">LOCAL STORAGE STATUS</span>
-                        </div>
-                        <div className="h-1 bg-alan-primary/20 w-full overflow-hidden">
-                            <div className="h-full bg-alan-primary w-[35%] animate-pulse" />
-                        </div>
-                        <div className="flex justify-between text-[9px] font-mono text-alan-secondary mt-1">
-                            <span>USED: 342MB</span>
-                            <span>FREE: 12GB</span>
-                        </div>
-                      </div>
-                   </div>
-
-                   {/* Column 2: Personality Matrix */}
-                   <div className="space-y-6">
-                      <h3 className="text-sm font-mono text-alan-primary/70 uppercase border-l-2 border-alan-primary pl-2">Personality Matrix</h3>
-                      
-                      <div className="p-6 bg-alan-primary/5 border border-alan-primary/20 relative overflow-hidden">
-                         <div className="absolute top-2 right-2 opacity-20"><Cpu size={48} /></div>
-                         <RangeSlider 
-                            label="HUMOR SETTING" 
-                            value={settings.humorLevel} 
-                            onChange={(val) => setSettings(p => ({...p, humorLevel: val}))} 
-                         />
-                         <div className="mt-4 grid grid-cols-3 gap-1 text-[9px] font-mono text-center opacity-60">
-                             <div className={`${settings.humorLevel < 30 ? 'text-alan-primary' : ''}`}>LOGICAL</div>
-                             <div className={`${settings.humorLevel >= 30 && settings.humorLevel < 70 ? 'text-alan-primary' : ''}`}>BALANCED</div>
-                             <div className={`${settings.humorLevel >= 70 ? 'text-alan-accent' : ''}`}>SARCASTIC</div>
-                         </div>
-                      </div>
-                   </div>
-                </div>
-             </div>
-          </div>
-        </div>
-      )}
+      {/* Command Center Overlay */}
+      <CommandCenter 
+        isOpen={isCommandCenterOpen} 
+        onClose={() => setIsCommandCenterOpen(false)}
+        settings={settings}
+        onUpdateSettings={setSettings}
+        systemState={systemState}
+        logs={messages.map(m => `[${m.sender}] ${m.text.substring(0, 50)}...`)}
+      />
 
       {/* LEFT PANEL: Sensory & System Status */}
       <div className={`
         flex-col md:w-5/12 lg:w-4/12 border-r border-alan-primary/20 bg-alan-glass/90 z-20 transition-all duration-300 relative
         ${activeTab === 'visual' ? 'flex w-full h-full' : 'hidden md:flex'}
       `}>
-        {/* Network Status Header (Absolute) */}
+        {/* Network Status Header */}
         <div className="absolute top-4 left-4 z-30 flex gap-4 font-mono text-[10px] tracking-widest pointer-events-none">
            <div className="flex items-center gap-1">
               <span className="text-alan-secondary/50">NET:</span>
@@ -143,7 +164,7 @@ const App: React.FC = () => {
            <div className="flex items-center gap-1">
               <span className="text-alan-secondary/50">CPU:</span>
               <span className={systemState.processing ? "text-alan-warning" : "text-alan-primary"}>
-                  {systemState.processing ? 'BUSY' : 'IDLE'}
+                  {systemState.meta.cpuLoad}%
               </span>
            </div>
         </div>
@@ -151,8 +172,15 @@ const App: React.FC = () => {
         {/* Scrollable Content Area */}
         <div className="flex-1 flex flex-col overflow-y-auto scrollbar-none relative pt-10">
             {/* Visualizer Container */}
-            <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[400px]">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-[400px] relative">
               <Visualizer state={visualizerState} />
+
+              {/* REASONING HUD (Overlays visualizer when thinking or showing thoughts) */}
+              <ReasoningHUD 
+                 active={systemState.processing && systemState.reasoningMode === ReasoningMode.DEEP} 
+                 mode={systemState.reasoningMode}
+                 thoughts={activeThoughts}
+              />
 
               {/* Terminal Log Under Visualizer */}
               <div className="mt-8 w-full max-w-sm relative opacity-80 hover:opacity-100 transition-opacity">
@@ -210,12 +238,12 @@ const App: React.FC = () => {
                  <span className="text-[10px] font-mono tracking-widest text-alan-secondary group-hover:text-alan-primary transition-colors">AUDIO</span>
               </div>
 
-               {/* Config Toggle */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
+               {/* Command Center Toggle */}
+              <div className="flex flex-col items-center gap-2 group cursor-pointer" onClick={() => setIsCommandCenterOpen(true)}>
                  <div className="w-12 h-12 rounded-full border border-alan-secondary/30 flex items-center justify-center bg-transparent hover:border-alan-primary/50 hover:bg-alan-primary/5 transition-all duration-300">
-                    <Sliders size={20} className="text-alan-secondary group-hover:text-alan-primary" />
+                    <LayoutGrid size={20} className="text-alan-secondary group-hover:text-alan-primary" />
                  </div>
-                 <span className="text-[10px] font-mono tracking-widest text-alan-secondary group-hover:text-alan-primary transition-colors">SYSTEM</span>
+                 <span className="text-[10px] font-mono tracking-widest text-alan-secondary group-hover:text-alan-primary transition-colors">GRID</span>
               </div>
            </div>
         </div>
@@ -244,14 +272,47 @@ const App: React.FC = () => {
           )}
           
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender === MessageSender.USER ? 'justify-end' : 'justify-start'} animate-appear`}>
-              <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender === MessageSender.USER ? 'ml-auto' : ''}`}>
-                 <Card 
-                    title={msg.sender === MessageSender.USER ? 'COMMAND_INPUT' : 'RESPONSE_LOG'}
-                    className={`${msg.sender === MessageSender.USER ? 'border-alan-secondary/50 bg-alan-secondary/5' : 'border-alan-primary/50'}`}
-                 >
-                    <div className="text-sm md:text-base whitespace-pre-wrap">{msg.text}</div>
-                 </Card>
+            <div key={msg.id} className={`flex flex-col ${msg.sender === MessageSender.USER ? 'items-end' : 'items-start'} animate-appear`}>
+              <div className={`
+                max-w-[85%] md:max-w-[75%] p-4 rounded-2xl backdrop-blur-sm border relative overflow-hidden group
+                ${msg.sender === MessageSender.USER 
+                  ? 'bg-alan-primary/10 border-alan-primary/30 text-alan-primary rounded-tr-none' 
+                  : 'bg-alan-glass border-alan-primary/20 text-alan-secondary rounded-tl-none'}
+              `}>
+                {/* Holographic Scan Effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[appear_1s_ease-in-out]" />
+
+                {/* Sender Label */}
+                <div className="text-[10px] font-mono tracking-widest opacity-50 mb-2 flex justify-between items-center gap-4">
+                   <span>{msg.sender === MessageSender.USER ? settings.userName.toUpperCase() : 'ALAN_AI'}</span>
+                   <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                </div>
+
+                {/* Attachments Display */}
+                {msg.metadata?.attachments?.map((att, i) => (
+                   <div key={i} className="mb-2 p-2 bg-black/40 rounded border border-alan-primary/20 flex items-center gap-2 max-w-full">
+                       <Paperclip size={12} className="shrink-0" />
+                       <span className="text-xs truncate">{att.name}</span>
+                       <span className="text-[9px] px-1 bg-alan-primary/20 rounded ml-auto">{att.type.toUpperCase()}</span>
+                   </div>
+                ))}
+
+                {/* Message Content */}
+                {msg.sender === MessageSender.ALAN ? (
+                   <RichOutputRenderer content={msg.text} />
+                ) : (
+                   <div className="whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</div>
+                )}
+                
+                {/* Action Plan Metadata Badge */}
+                {msg.metadata?.actionPlan && (
+                   <div className="mt-3 pt-2 border-t border-alan-primary/10">
+                       <div className="text-[10px] font-mono text-alan-secondary/60 flex items-center gap-2">
+                           <LayoutGrid size={10} /> 
+                           <span>EXECUTION_PLAN_GENERATED // ID: {msg.metadata.actionPlan.id.split('_')[1]}</span>
+                       </div>
+                   </div>
+                )}
               </div>
             </div>
           ))}
@@ -259,28 +320,59 @@ const App: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 md:p-6 border-t border-alan-primary/20 bg-alan-glass/95 backdrop-blur-xl">
-          <div className="flex gap-3 items-end max-w-4xl mx-auto">
-            <div className="flex-1 relative group">
-              <input 
-                type="text" 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="ENTER INSTRUCTION..."
-                className="w-full bg-black/40 border-b-2 border-alan-primary/30 py-3 px-4 text-alan-secondary placeholder-alan-secondary/20 focus:outline-none focus:border-alan-primary focus:bg-alan-primary/5 font-mono text-sm transition-all uppercase tracking-wider"
-              />
-              <div className="absolute bottom-0 left-0 w-0 h-[2px] bg-alan-primary transition-all duration-500 group-hover:w-full" />
-            </div>
+        <div className="p-4 md:p-6 bg-alan-glass/90 border-t border-alan-primary/20 shrink-0">
+            <div className="flex items-end gap-2 relative">
+                {/* File Upload Hidden Input */}
+                <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                
+                <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-lg border border-alan-primary/20 text-alan-primary/60 hover:text-alan-primary hover:bg-alan-primary/10 transition-colors">
+                   <Paperclip size={20} />
+                </button>
+                
+                <button onClick={handlePasteClipboard} className="hidden md:block p-3 rounded-lg border border-alan-primary/20 text-alan-primary/60 hover:text-alan-primary hover:bg-alan-primary/10 transition-colors">
+                   <Clipboard size={20} />
+                </button>
 
-            <button 
-              onClick={handleSend}
-              disabled={!inputText.trim()}
-              className="p-4 bg-alan-primary/10 border border-alan-primary/30 text-alan-primary hover:bg-alan-primary/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors clip-corners"
-            >
-              <Send size={20} />
-            </button>
-          </div>
+                <div className="flex-1 relative group">
+                    <textarea 
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={systemState.listening ? "Listening to voice channel..." : "Enter command or query..."}
+                        className="w-full bg-black/40 border border-alan-primary/30 rounded-lg p-3 pr-12 text-sm font-mono text-alan-primary placeholder-alan-secondary/30 focus:outline-none focus:border-alan-primary focus:shadow-[0_0_15px_rgba(0,240,255,0.1)] resize-none h-12 py-3 transition-all"
+                    />
+                    {/* Attachments Preview in Input Bar */}
+                    {attachments.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-2 flex gap-2">
+                            {attachments.map((a, i) => (
+                                <div key={i} className="bg-alan-primary/20 text-alan-primary text-xs px-2 py-1 rounded border border-alan-primary/40 flex items-center gap-1 backdrop-blur-md">
+                                    {a.name} <X size={12} className="cursor-pointer hover:text-white" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <button 
+                  onClick={inputText ? handleSend : toggleListening}
+                  className={`p-3 rounded-lg border transition-all duration-300 ${
+                    inputText 
+                      ? 'bg-alan-primary/20 border-alan-primary text-alan-primary hover:bg-alan-primary hover:text-black shadow-[0_0_15px_rgba(0,240,255,0.2)]'
+                      : systemState.listening 
+                         ? 'bg-alan-accent/20 border-alan-accent text-alan-accent animate-pulse shadow-[0_0_20px_rgba(255,0,60,0.4)]'
+                         : 'bg-alan-primary/5 border-alan-primary/30 text-alan-primary/60 hover:text-alan-primary'
+                  }`}
+                >
+                   {inputText ? <Send size={20} /> : (systemState.listening ? <MicOff size={20} /> : <Mic size={20} />)}
+                </button>
+            </div>
+            
+            {/* Security Footer */}
+            <div className="text-[10px] font-mono text-center mt-2 text-alan-secondary/30 tracking-[0.3em] flex justify-center items-center gap-4">
+                <span>SECURE CHANNEL</span>
+                <span>//</span>
+                <span>ENC: {systemState.security.encryptionLevel}</span>
+            </div>
         </div>
       </div>
     </div>
