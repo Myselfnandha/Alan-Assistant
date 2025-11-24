@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ALAN | Advanced Logical Artificial Network</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              alan: {
+                bg: '#020408',
+                primary: '#00f0ff',
+                secondary: '#00a8ff',
+                accent: '#ff003c',
+                success: '#00ff9d',
+                warning: '#fcee0a',
+                dim: 'rgba(0, 240, 255, 0.05)',
+                glass: 'rgba(2, 4, 8, 0.85)',
+              }
+            },
+            fontFamily: {
+              mono: ['"JetBrains Mono"', 'monospace'],
+              display: ['"Rajdhani"', 'sans-serif'],
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 12s linear infinite',
+              'scan': 'scan 3s linear infinite',
+              'glitch': 'glitch 1s linear infinite',
+              'appear': 'appear 0.5s ease-out forwards',
+            },
+            keyframes: {
+              scan: {
+                '0%': { transform: 'translateY(-100%)', opacity: '0.5' },
+                '50%': { opacity: '1' },
+                '100%': { transform: 'translateY(100%)', opacity: '0.5' },
+              },
+              appear: {
+                '0%': { opacity: '0', transform: 'scale(0.9)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #020408;
+        color: #e0f7fa;
+        font-family: 'Rajdhani', sans-serif;
+        overflow: hidden;
+      }
+      
+      /* CRT & HUD Effects */
+      .scanlines {
+        background: linear-gradient(
+          to bottom,
+          rgba(255,255,255,0),
+          rgba(255,255,255,0) 50%,
+          rgba(0,0,0,0.2) 50%,
+          rgba(0,0,0,0.2)
+        );
+        background-size: 100% 4px;
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        pointer-events: none;
+        z-index: 50;
+        opacity: 0.6;
+      }
+      
+      .vignette {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.8) 100%);
+        pointer-events: none;
+        z-index: 51;
+      }
+
+      .clip-corners {
+        clip-path: polygon(
+          10px 0, 100% 0, 
+          100% calc(100% - 10px), calc(100% - 10px) 100%, 
+          0 100%, 0 10px
+        );
+      }
+      
+      .clip-corners-lg {
+        clip-path: polygon(
+          20px 0, 100% 0, 
+          100% calc(100% - 20px), calc(100% - 20px) 100%, 
+          0 100%, 0 20px
+        );
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #020408;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #004455;
+        border-radius: 0px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #00f0ff;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

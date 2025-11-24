@@ -1,0 +1,9 @@
+{
+  "name": "ALAN - Advanced Hybrid Assistant",
+  "description": "A JARVIS + TARS hybrid AI assistant featuring multi-layer architecture, voice interaction, and holographic UI. Optimized for mobile and desktop web.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
