@@ -167,6 +167,21 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                          </div>
                       </div>
                    </div>
+
+                   {/* SETTINGS SHORTCUT */}
+                   <div className="md:col-span-2 bg-alan-primary/5 border border-alan-primary/20 p-6 flex items-center justify-between group hover:bg-alan-primary/10 transition-colors">
+                      <div>
+                          <h3 className="text-sm font-bold text-alan-primary flex items-center gap-2">
+                              <Settings size={16} /> SYSTEM CONFIGURATION
+                          </h3>
+                          <p className="text-xs text-alan-secondary/60 font-mono mt-1">
+                              Modify Personality, Voice Synthesis, and Core Protocols.
+                          </p>
+                      </div>
+                      <Button onClick={() => setActiveTab('config')} active={true}>
+                          ACCESS ALL SETTINGS
+                      </Button>
+                   </div>
                 </div>
              )}
 
@@ -343,6 +358,114 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                         </div>
                     </div>
                 </div>
+             )}
+
+             {/* CONFIG TAB */}
+             {activeTab === 'config' && (
+                 <div className="animate-appear space-y-6 max-w-3xl">
+                     <h3 className="text-sm font-mono text-alan-primary border-b border-alan-primary/20 pb-2 mb-4">SYSTEM CONFIGURATION</h3>
+                     
+                     {/* Identity */}
+                     <div className="bg-alan-primary/5 p-4 border border-alan-primary/10">
+                         <label className="text-xs font-mono text-alan-secondary block mb-2 tracking-widest">USER IDENTITY</label>
+                         <input 
+                             type="text" 
+                             className="w-full bg-black border border-alan-primary/30 text-alan-primary text-sm p-3 font-mono outline-none focus:border-alan-primary"
+                             value={settings.userName}
+                             onChange={(e) => onUpdateSettings({...settings, userName: e.target.value})}
+                         />
+                     </div>
+
+                     {/* Personality */}
+                     <div className="bg-alan-primary/5 p-4 border border-alan-primary/10">
+                         <label className="text-xs font-mono text-alan-secondary block mb-2 tracking-widest">PERSONALITY MATRIX</label>
+                         <div className="flex gap-2">
+                             {['jarvis', 'tars', 'hybrid'].map(p => (
+                                 <Button 
+                                     key={p} 
+                                     active={settings.personality === p} 
+                                     onClick={() => onUpdateSettings({...settings, personality: p as any})} 
+                                     className="flex-1"
+                                 >
+                                     {p.toUpperCase()}
+                                 </Button>
+                             ))}
+                         </div>
+                     </div>
+
+                     {/* Humor Level */}
+                     <div className="bg-alan-primary/5 p-4 border border-alan-primary/10">
+                         <RangeSlider 
+                             label="HUMOR SETTING" 
+                             value={settings.humorLevel} 
+                             onChange={(v) => onUpdateSettings({...settings, humorLevel: v})} 
+                         />
+                     </div>
+
+                     {/* Voice Selection */}
+                     <div className="bg-alan-primary/5 p-4 border border-alan-primary/10">
+                         <label className="text-xs font-mono text-alan-secondary block mb-2 tracking-widest">VOCAL SYNTHESIS</label>
+                         <select 
+                             className="w-full bg-black border border-alan-primary/30 text-alan-primary text-xs p-3 font-mono outline-none focus:border-alan-primary"
+                             value={settings.voiceURI}
+                             onChange={(e) => onUpdateSettings({...settings, voiceURI: e.target.value})}
+                         >
+                             <option value="">DEFAULT SYSTEM VOICE</option>
+                             {availableVoices.map(v => (
+                                 <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                             ))}
+                         </select>
+                     </div>
+
+                     {/* Custom Instructions */}
+                     <div className="bg-alan-primary/5 p-4 border border-alan-primary/10">
+                         <label className="text-xs font-mono text-alan-secondary block mb-2 tracking-widest">SYSTEM OVERRIDES (CUSTOM PROMPT)</label>
+                         <textarea 
+                             className="w-full bg-black border border-alan-primary/30 text-alan-primary text-sm p-3 font-mono outline-none focus:border-alan-primary h-24 resize-none"
+                             value={settings.customInstructions}
+                             onChange={(e) => onUpdateSettings({...settings, customInstructions: e.target.value})}
+                             placeholder="Enter strict protocol overrides..."
+                         />
+                     </div>
+                 </div>
+             )}
+
+             {/* PLUGINS TAB */}
+             {activeTab === 'plugins' && (
+                 <div className="animate-appear">
+                    <h3 className="text-sm font-mono text-alan-primary border-b border-alan-primary/20 pb-2 mb-6">EXTENSION MODULES (LAYER 11)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {AVAILABLE_PLUGINS.map(plugin => (
+                            <div key={plugin.id} className={`p-4 border transition-all ${settings.plugins[plugin.id] ? 'bg-alan-primary/10 border-alan-primary' : 'bg-black/40 border-alan-secondary/20'}`}>
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded ${settings.plugins[plugin.id] ? 'bg-alan-primary/20 text-alan-primary' : 'bg-alan-secondary/10 text-alan-secondary'}`}>
+                                            <Box size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-alan-primary">{plugin.name}</h4>
+                                            <p className="text-[10px] font-mono text-alan-secondary/60">V.{plugin.version}</p>
+                                        </div>
+                                    </div>
+                                    <div className="relative inline-block w-10 h-6 transition duration-200 ease-in-out cursor-pointer" onClick={() => togglePlugin(plugin.id)}>
+                                        <div className={`block w-10 h-6 rounded-full border ${settings.plugins[plugin.id] ? 'bg-alan-primary/20 border-alan-primary' : 'bg-black border-alan-secondary/30'}`} />
+                                        <div className={`absolute left-1 top-1 w-4 h-4 rounded-full transition-transform ${settings.plugins[plugin.id] ? 'bg-alan-primary translate-x-4 shadow-[0_0_10px_cyan]' : 'bg-alan-secondary/50'}`} />
+                                    </div>
+                                </div>
+                                <p className="text-xs text-alan-secondary mt-3 leading-relaxed">
+                                    {plugin.description}
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {plugin.capabilities.map(cap => (
+                                        <span key={cap} className="text-[9px] px-1.5 py-0.5 bg-black border border-alan-secondary/20 rounded text-alan-secondary/70">
+                                            {cap}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
              )}
 
           </div>
